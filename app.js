@@ -65,7 +65,7 @@ app.get('/signup', (req, res) => {
         <form method="POST" action="/signup">
             <input name="name" placeholder="name" required /><br>
             <input name="email" placeholder="email" required /><br>
-            <input name="password" placeholder="password" required /><br>
+            <input  type="password" name="password" placeholder="password" required /><br>
             <button type="submit">Sign Up</button>
         </form>
     `);
@@ -105,7 +105,7 @@ app.get('/login', (req, res) => {
     res.send(`
         <form method="POST" action="/login">
             <input name="email" placeholder="email" required /><br>
-            <input name="password" placeholder="password" required /><br>
+            <input type="password" name="password" placeholder="password" required /><br>
             <button type="submit">Login</button>
         </form>
     `);
@@ -114,8 +114,13 @@ app.get('/login', (req, res) => {
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
-    if (!email) return res.send("Please provide an email <a href='/login'>Try again</a>");
-    if (!password) return res.send("Please provide a password <a href='/login'>Try again</a>");
+    if (!email) {
+        return res.send("Please provide an email <a href='/login'>Try again</a>");
+    }
+
+    if (!password) {
+        return res.send("Please provide a password <a href='/login'>Try again</a>");
+    }
 
     const schema = Joi.object({
         email: Joi.string().email().required(),
@@ -123,14 +128,23 @@ app.post('/login', async (req, res) => {
     });
 
     const { error } = schema.validate(req.body);
-    if (error) return res.send("Invalid input <a href='/login'>Try again</a>");
+    if (error) {
+        return res.send("Invalid input format <a href='/login'>Try again</a>");
+    }
 
     const user = await User.findOne({ email });
-    if (!user) return res.send("User not found <a href='/login'>Try again</a>");
+
+    if (!user) {
+        return res.send("Email not found <a href='/login'>Try again</a>");
+    }
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.send("Invalid password <a href='/login'>Try again</a>");
 
+    if (!valid) {
+        return res.send("Incorrect password <a href='/login'>Try again</a>");
+    }
+
+    // Success
     req.session.user = { name: user.name };
     res.redirect('/members');
 });
