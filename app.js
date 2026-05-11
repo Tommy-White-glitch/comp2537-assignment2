@@ -9,6 +9,8 @@ const bcrypt = require('bcrypt');
 
 const app = express();
 
+app.set('view engine', 'ejs');
+
 // Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -22,7 +24,11 @@ mongoose.connect(`mongodb+srv://${process.env.MONGODB_USER}:${process.env.MONGOD
 const userSchema = new mongoose.Schema({
     name: String,
     email: String,
-    password: String
+    password: String,
+    user_type: {
+        type: String,
+        default: "user"
+    }
 });
 const User = mongoose.model("User", userSchema);
 
@@ -43,32 +49,44 @@ app.use(session({
     }
 }));
 
+function isValidSession(req) {
+    return req.session.user;
+}
+
+function sessionValidation(req, res, next) {
+
+    if (isValidSession(req)) {
+        next();
+    } else {
+        res.redirect('/login');
+    }
+}
+
+function adminAuthorization(req, res, next) {
+
+    if (req.session.user.user_type === "admin") {
+        next();
+    } else {
+
+        res.status(403);
+
+        res.render("error", {
+            message: "You are not authorized."
+        });
+    }
+}
+
 // Home Page
 app.get('/', (req, res) => {
-    if (!req.session.user) {
-        res.send(`
-            <button onclick="location.href='/signup'">Sign Up</button><br>
-            <button onclick="location.href='/login'">Log In</button>
-        `);
-    } else {
-        res.send(`
-            <p>Hello, ${req.session.user.name}!</p>
-            <button onclick="location.href='/members'">Members Area</button><br>
-            <button onclick="location.href='/logout'">Logout</button>
-        `);
-    }
+
+    res.render("index", {
+        user: req.session.user
+    });
 });
 
 // Sign Up Page
 app.get('/signup', (req, res) => {
-    res.send(`
-        <form method="POST" action="/signup">
-            <input name="name" placeholder="name" required /><br>
-            <input name="email" placeholder="email" required /><br>
-            <input  type="password" name="password" placeholder="password" required /><br>
-            <button type="submit">Sign Up</button>
-        </form>
-    `);
+    res.render("signup");
 });
 
 app.post('/signup', async (req, res) => {
@@ -94,21 +112,25 @@ app.post('/signup', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await User.create({ name, email, password: hashedPassword });
+    await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        user_type: "user"
+    });
 
-    req.session.user = { name };
+    req.session.user = {
+        name,
+        email,
+        user_type: "user"
+    };
+    
     res.redirect('/members');
 });
 
 // Log In Page
 app.get('/login', (req, res) => {
-    res.send(`
-        <form method="POST" action="/login">
-            <input name="email" placeholder="email" required /><br>
-            <input type="password" name="password" placeholder="password" required /><br>
-            <button type="submit">Login</button>
-        </form>
-    `);
+    res.render("login");
 });
 
 app.post('/login', async (req, res) => {
@@ -145,23 +167,64 @@ app.post('/login', async (req, res) => {
     }
 
     // Success
-    req.session.user = { name: user.name };
+    req.session.user = {
+        name: user.name,
+        email: user.email,
+        user_type: user.user_type
+    };
     res.redirect('/members');
 });
 
 // Members Page
-app.get('/members', (req, res) => {
-    if (!req.session.user) return res.redirect('/');
+app.get('/members', sessionValidation, (req, res) => {
 
-    const images = ['garfield.jpg', 'odie.jpg', 'snoopy.jpg'];
-    const randomImage = images[Math.floor(Math.random() * images.length)];
+    const images = ['garfield.jpg',
+                    'odie.jpg', 
+                    'snoopy.jpg'
+                   ];
 
-    res.send(`
-        <h1>Hello, ${req.session.user.name}!</h1>
-        <img src="/${randomImage}" width="300"/>
-        <br><button onclick="location.href='/logout'">Logout</button>
+    res.render('members', {
+        user: req.session.user,
+        images
+    });
+});
 
-    `);
+app.get('/admin',
+    sessionValidation,
+    adminAuthorization,
+    async (req, res) => {
+
+        const users = await User.find({});
+
+        res.render('admin', {
+            users
+        });
+});
+
+app.get('/promote/:email',
+    sessionValidation,
+    adminAuthorization,
+    async (req, res) => {
+
+        await User.updateOne(
+            { email: req.params.email },
+            { $set: { user_type: 'admin' } }
+        );
+
+        res.redirect('/admin');
+});
+
+app.get('/demote/:email',
+    sessionValidation,
+    adminAuthorization,
+    async (req, res) => {
+
+        await User.updateOne(
+            { email: req.params.email },
+            { $set: { user_type: 'user' } }
+        );
+
+        res.redirect('/admin');
 });
 
 // Log Out
@@ -171,10 +234,15 @@ app.get('/logout', (req, res) => {
 
 // 404
 app.use((req, res) => {
-    res.status(404).send("<p>Page not found - 404</p>");
+
+    res.status(404);
+
+    res.render('404');
 });
 
 // Server
-app.listen(3000, () => {
-    console.log("Server running on http://localhost:3000");
+const port = process.env.PORT || 3000;
+
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
 });

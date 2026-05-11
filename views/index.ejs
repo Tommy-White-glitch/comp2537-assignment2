@@ -1,0 +1,27 @@
+<%- include("templates/header") %>
+
+<h1 class="mb-4">Home Page</h1>
+
+<% if (user && user.user_type === 'admin') { %>
+
+    <a href="/admin" class="btn btn-warning">
+        Admin Page
+    </a>
+
+<% } %>
+
+<% if (!user) { %>
+
+    <button onclick="location.href='/signup'">Sign Up</button><br>
+    <button onclick="location.href='/login'">Log In</button>
+
+<% } else { %>
+
+    <p>Hello, <%= user.name %></p>
+
+    <button onclick="location.href='/members'">Members Area</button><br>
+    <button onclick="location.href='/logout'">Logout</button>
+
+<% } %>
+
+<%- include("templates/footer") %>
