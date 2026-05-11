@@ -178,9 +178,9 @@ app.post('/login', async (req, res) => {
 // Members Page
 app.get('/members', sessionValidation, (req, res) => {
 
-    const images = ['/garfield.jpg',
-                    '/odie.jpg', 
-                    '/snoopy.jpg'
+    const images = ['garfield.jpg',
+                    'odie.jpg', 
+                    'snoopy.jpg'
                    ];
 
     res.render('members', {
